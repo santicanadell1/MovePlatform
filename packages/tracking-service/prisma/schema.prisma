@@ -1,0 +1,103 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions", "multiSchema"]
+  output          = "../src/generated/client"
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  schemas    = ["tracking"]
+  extensions = [postgis]
+}
+
+model Transfer {
+  id            String         @id @default(uuid())
+  reservationId String         @unique @map("reservation_id")
+  vehicleId     String         @map("vehicle_id")
+  conductorId   String         @map("conductor_id")
+  status        TransferStatus @default(PENDING)
+  startedAt     DateTime?      @map("started_at")
+  finishedAt    DateTime?      @map("finished_at")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  gpsPoints GpsPoint[]
+  alerts    Alert[]
+  incidents Incident[]
+
+  @@index([status])
+  @@index([vehicleId])
+  @@index([conductorId])
+  @@index([createdAt])
+  @@map("transfers")
+  @@schema("tracking")
+}
+
+model GpsPoint {
+  id          String                                @id @default(uuid())
+  deviceId    String                                @map("device_id")
+  transferId  String?                               @map("transfer_id")
+  lat         Float
+  lng         Float
+  location    Unsupported("geometry(Point, 4326)")?
+  speed       Float?
+  heading     Float?
+  accuracy    Float?
+  timestamp   DateTime
+
+  transfer Transfer? @relation(fields: [transferId], references: [id])
+
+  @@index([transferId, timestamp], type: Brin, map: "gps_points_transfer_timestamp_brin")
+  @@index([deviceId, timestamp], type: Brin, map: "gps_points_device_timestamp_brin")
+  @@map("gps_points")
+  @@schema("tracking")
+}
+
+model Alert {
+  id         String    @id @default(uuid())
+  transferId String    @map("transfer_id")
+  type       AlertType
+  lat        Float
+  lng        Float
+  message    String
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  transfer Transfer @relation(fields: [transferId], references: [id])
+
+  @@unique([transferId, type, lat, lng, createdAt], map: "alerts_transfer_type_lat_lng_created_unique")
+  @@map("alerts")
+  @@schema("tracking")
+}
+
+model Incident {
+  id          String   @id @default(uuid())
+  transferId  String   @map("transfer_id")
+  conductorId String   @map("conductor_id")
+  description String
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  transfer Transfer @relation(fields: [transferId], references: [id])
+
+  @@map("incidents")
+  @@schema("tracking")
+}
+
+enum TransferStatus {
+  PENDING
+  IN_TRANSIT
+  COMPLETED
+  CANCELLED
+
+  @@schema("tracking")
+}
+
+enum AlertType {
+  ZONE_RED_ENTRY
+  ZONE_PREFERRED_ENTRY
+  STOP_DETECTED
+  EXCESSIVE_SPEED
+  ROUTE_DEVIATION
+
+  @@schema("tracking")
+}

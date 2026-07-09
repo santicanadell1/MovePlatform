@@ -1,0 +1,24 @@
+{
+  "apiUrl": "http://localhost:8000",
+  "routes": [
+    {
+      "deviceId": "GPS-DEMO-001",
+      "token": "JWT_CONDUCTOR_AQUI",
+      "intervalSeconds": 5,
+      "speed": 40,
+      "waypoints": [
+        { "lat": -34.8850, "lng": -56.2050 },
+        { "lat": -34.8860, "lng": -56.2120 },
+        { "lat": -34.8870, "lng": -56.2180 },
+        { "lat": -34.8850, "lng": -56.2200 },
+        { "lat": -34.8830, "lng": -56.2220 },
+        { "lat": -34.8820, "lng": -56.2260 },
+        { "lat": -34.8800, "lng": -56.2280 },
+        { "lat": -34.8790, "lng": -56.2250 },
+        { "lat": -34.8780, "lng": -56.2200 },
+        { "lat": -34.8770, "lng": -56.2150 }
+      ],
+      "stopsAt": []
+    }
+  ]
+}

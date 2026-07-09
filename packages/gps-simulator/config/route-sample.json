@@ -1,0 +1,38 @@
+{
+  "apiUrl": "http://localhost:8000",
+  "routes": [
+    {
+      "deviceId": "device-001",
+      "token": "JWT_CONDUCTOR_1_AQUI",
+      "intervalSeconds": 10,
+      "speed": 50,
+      "waypoints": [
+        { "lat": -34.9058, "lng": -56.1913 },
+        { "lat": -34.9040, "lng": -56.1880 },
+        { "lat": -34.9020, "lng": -56.1850 },
+        { "lat": -34.9005, "lng": -56.1820 },
+        { "lat": -34.8990, "lng": -56.1790 },
+        { "lat": -34.8975, "lng": -56.1760 },
+        { "lat": -34.8960, "lng": -56.1730 },
+        { "lat": -34.8945, "lng": -56.1700 }
+      ],
+      "stopsAt": []
+    },
+    {
+      "deviceId": "device-002",
+      "token": "JWT_CONDUCTOR_2_AQUI",
+      "intervalSeconds": 10,
+      "speed": 40,
+      "waypoints": [
+        { "lat": -34.9100, "lng": -56.2000 },
+        { "lat": -34.9080, "lng": -56.1970 },
+        { "lat": -34.9060, "lng": -56.1940 },
+        { "lat": -34.9040, "lng": -56.1910 },
+        { "lat": -34.9020, "lng": -56.1880 }
+      ],
+      "stopsAt": [
+        { "waypointIndex": 2, "durationSeconds": 210 }
+      ]
+    }
+  ]
+}

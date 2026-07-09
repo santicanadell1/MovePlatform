@@ -1,0 +1,50 @@
+export declare enum UserRole {
+  CLIENT_PARTICULAR = 'CLIENT_PARTICULAR',
+  CLIENT_EMPRESA = 'CLIENT_EMPRESA',
+  OPERATOR = 'OPERATOR',
+  ADMIN = 'ADMIN',
+  CONDUCTOR = 'CONDUCTOR',
+}
+export declare enum ClientType {
+  PARTICULAR = 'PARTICULAR',
+  EMPRESA = 'EMPRESA',
+}
+export declare enum ReservationStatus {
+  PENDING_CLASSIFICATION = 'PENDING_CLASSIFICATION',
+  PENDING_QUOTE = 'PENDING_QUOTE',
+  QUOTED = 'QUOTED',
+  PENDING_PAYMENT = 'PENDING_PAYMENT',
+  CONFIRMED = 'CONFIRMED',
+  REJECTED = 'REJECTED',
+  ACCEPTED = 'ACCEPTED',
+  CANCELLED = 'CANCELLED',
+}
+export declare enum TransferStatus {
+  PENDING = 'PENDING',
+  IN_TRANSIT = 'IN_TRANSIT',
+  COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED',
+}
+export declare enum AlertType {
+  ZONE_RED_ENTRY = 'ZONE_RED_ENTRY',
+  ZONE_PREFERRED_ENTRY = 'ZONE_PREFERRED_ENTRY',
+  STOP_DETECTED = 'STOP_DETECTED',
+  EXCESSIVE_SPEED = 'EXCESSIVE_SPEED',
+  ROUTE_DEVIATION = 'ROUTE_DEVIATION',
+}
+export declare enum ZoneType {
+  RED = 'RED',
+  PREFERRED = 'PREFERRED',
+}
+export declare enum GoodSize {
+  SMALL = 'SMALL',
+  MEDIUM = 'MEDIUM',
+  LARGE = 'LARGE',
+  EXTRA_LARGE = 'EXTRA_LARGE',
+}
+export declare enum PaymentStatus {
+  PENDING = 'PENDING',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
+}
+//# sourceMappingURL=enums.d.ts.map

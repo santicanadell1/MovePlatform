@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+
+# Build
+dist/
+build/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# IDE
+.idea/
+.vscode/
+.claude/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Coverage
+coverage/
+
+# Docker volumes
+postgres-data/
+redis-data/
+rabbitmq-data/
+ollama-data/
+grafana-data/
+prometheus-data/
+
+# ORS data (archivo grande ~50MB)
+infra/ors/uruguay-latest.osm.pbf
+infra/ors/data/
+
+# pnpm
+.pnpm-store/
+
+# Prisma generated (solo en dev local)
+packages/*/prisma/migrations/*.sql
+packages/*/src/generated/
+
+# specs
+packages/*/specs/
+docs/superpowers/*
+
+# K6 load tests — credenciales generadas por seed-k6-data.ts
+tests/k6/setup/k6-credentials.json

@@ -1,0 +1,320 @@
+services:
+  # ─── API Gateway ──────────────────────────────────────────────────────────
+
+  api-gateway:
+    image: nginx:alpine
+    container_name: move-gateway
+    restart: unless-stopped
+    ports:
+      - "8000:80"
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      booking-service:
+        condition: service_healthy
+      operations-service:
+        condition: service_healthy
+      tracking-service:
+        condition: service_healthy
+    networks:
+      - move-network
+
+  # ─── Servicios de aplicación ──────────────────────────────────────────────
+
+  booking-service:
+    build:
+      context: .
+      dockerfile: packages/booking-service/Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: 3001
+      DATABASE_URL: postgresql://${POSTGRES_USER:-move}:${POSTGRES_PASSWORD:-move_secret}@postgres:5432/${POSTGRES_DB:-move_db}?schema=booking
+      REDIS_URL: ${REDIS_URL}
+      RABBITMQ_URL: ${RABBITMQ_URL}
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID}
+      FIREBASE_PRIVATE_KEY: ${FIREBASE_PRIVATE_KEY}
+      FIREBASE_CLIENT_EMAIL: ${FIREBASE_CLIENT_EMAIL}
+      FIREBASE_API_KEY: ${FIREBASE_API_KEY}
+      MP_ACCESS_TOKEN: ${MP_ACCESS_TOKEN}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      SMTP_FROM: ${SMTP_FROM}
+      ORS_BASE_URL: ${ORS_BASE_URL}
+      ORS_API_KEY: ${ORS_API_KEY:-}
+      PRICING_DEFAULT_BASE_RATE: ${PRICING_DEFAULT_BASE_RATE:-100}
+      PRICING_DEFAULT_RATE_PER_KM: ${PRICING_DEFAULT_RATE_PER_KM:-50}
+      PRICING_DEFAULT_SURCHARGE_PERCENT: ${PRICING_DEFAULT_SURCHARGE_PERCENT:-0}
+      OLLAMA_URL: http://ollama:11434
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3001/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    networks:
+      - move-network
+
+  ai-worker:
+    build:
+      context: .
+      dockerfile: packages/ai-worker/Dockerfile
+    container_name: move-ai-worker
+    restart: unless-stopped
+    environment:
+      REDIS_URL: ${REDIS_URL}
+      RABBITMQ_URL: ${RABBITMQ_URL}
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:3b}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    networks:
+      - move-network
+
+  operations-service:
+    build:
+      context: .
+      dockerfile: packages/operations-service/Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: 3002
+      DATABASE_URL: postgresql://${POSTGRES_USER:-move}:${POSTGRES_PASSWORD:-move_secret}@postgres:5432/${POSTGRES_DB:-move_db}?schema=operations
+      REDIS_URL: ${REDIS_URL}
+      RABBITMQ_URL: ${RABBITMQ_URL}
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID}
+      FIREBASE_PRIVATE_KEY: ${FIREBASE_PRIVATE_KEY}
+      FIREBASE_CLIENT_EMAIL: ${FIREBASE_CLIENT_EMAIL}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3002/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks:
+      - move-network
+
+  tracking-service:
+    build:
+      context: .
+      dockerfile: packages/tracking-service/Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: 3003
+      DATABASE_URL: postgresql://${POSTGRES_USER:-move}:${POSTGRES_PASSWORD:-move_secret}@postgres:5432/${POSTGRES_DB:-move_db}?schema=tracking
+      REDIS_URL: ${REDIS_URL}
+      RABBITMQ_URL: ${RABBITMQ_URL}
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID}
+      FIREBASE_PRIVATE_KEY: ${FIREBASE_PRIVATE_KEY}
+      FIREBASE_CLIENT_EMAIL: ${FIREBASE_CLIENT_EMAIL}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3003/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks:
+      - move-network
+
+  frontend-geo:
+    build:
+      context: .
+      dockerfile: packages/frontend-geo/Dockerfile
+      args:
+        VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY}
+        VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN}
+        VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID}
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+    container_name: move-frontend-geo
+    restart: unless-stopped
+    ports:
+      - "4173:80"
+    networks:
+      - move-network
+
+  # ─── Infraestructura base ─────────────────────────────────────────────────
+
+  postgres:
+    build:
+      context: ./infra/postgres
+      dockerfile: Dockerfile
+    container_name: move-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-move}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-move_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-move_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-move} -d ${POSTGRES_DB:-move_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - move-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: move-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_secret}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis_secret}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - move-network
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: move-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-move}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-move_secret}
+      RABBITMQ_DEFAULT_VHOST: /
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - move-network
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: move-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+      - ./infra/ollama/entrypoint.sh:/entrypoint.sh
+    entrypoint: ["sh", "/entrypoint.sh"]
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list | grep -q nomic-embed-text && ollama list | grep -q qwen2.5:3b || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 20
+      start_period: 300s
+    networks:
+      - move-network
+
+  ors:
+    image: openrouteservice/openrouteservice:latest
+    container_name: move-ors
+    restart: unless-stopped
+    ports:
+      - "8080:8082"
+    volumes:
+      - ./infra/ors/uruguay-latest.osm.pbf:/home/ors/files/osm_file.pbf
+      - ors-data:/home/ors/ors-core/data
+    environment:
+      BUILD_GRAPHS: "True"
+      JAVA_OPTS: "-Xmx2g -Xms1g"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8082/ors/v2/health || exit 1"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 120s
+    networks:
+      - move-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: move-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=7d'
+      - '--web.enable-remote-write-receiver'
+    networks:
+      - move-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: move-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      - prometheus
+    networks:
+      - move-network
+
+# ─── Volumes ──────────────────────────────────────────────────────────────────
+
+volumes:
+  postgres-data:
+  redis-data:
+  rabbitmq-data:
+  ollama-data:
+  ors-data:
+  prometheus-data:
+  grafana-data:
+
+# ─── Networks ─────────────────────────────────────────────────────────────────
+
+networks:
+  move-network:
+    driver: bridge

@@ -1,0 +1,144 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - 'packages/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'tsconfig*.json'
+      - '.github/workflows/ci.yml'
+  push:
+    branches: [develop]
+    paths:
+      - 'packages/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'tsconfig*.json'
+
+jobs:
+  lint-and-typecheck:
+    name: Lint & Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm --filter @move/shared build
+
+      - run: pnpm -r --if-present prisma:generate
+
+      - run: pnpm -r lint
+
+      - run: pnpm -r typecheck
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: move
+          POSTGRES_PASSWORD: move_test
+          POSTGRES_DB: move_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U move"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+      rabbitmq:
+        image: rabbitmq:3.13-alpine
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd="rabbitmq-diagnostics -q ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm --filter @move/shared build
+
+      - run: pnpm -r --if-present prisma:generate
+        env:
+          DATABASE_URL: postgresql://move:move_test@localhost:5432/move_test
+
+      - name: Instalar pgvector en el contenedor postgres
+        run: |
+          docker exec ${{ job.services.postgres.id }} bash -c "apt-get update && apt-get install -y postgresql-16-pgvector"
+
+      - name: Init DB (schemas + extensiones)
+        run: PGPASSWORD=move_test psql -v ON_ERROR_STOP=1 -h localhost -U move -d move_test -f infra/postgres/init.sql
+
+      - run: pnpm -r --if-present prisma:migrate
+        env:
+          DATABASE_URL: postgresql://move:move_test@localhost:5432/move_test
+
+      - run: pnpm -r --if-present test -- --coverage
+        env:
+          DATABASE_URL: postgresql://move:move_test@localhost:5432/move_test
+          REDIS_URL: redis://localhost:6379
+          RABBITMQ_URL: amqp://localhost:5672
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm -r --if-present prisma:generate
+
+      - run: pnpm -r build

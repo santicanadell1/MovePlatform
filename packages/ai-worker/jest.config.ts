@@ -1,0 +1,15 @@
+import type { Config } from 'jest';
+
+const config: Config = {
+  testEnvironment: 'node',
+  roots: ['<rootDir>/src'],
+  testMatch: ['**/__tests__/**/*.test.ts', '**/*.test.ts'],
+  transform: {
+    '^.+\\.ts$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.jest.json' }],
+  },
+  moduleNameMapper: {
+    '^@move/shared$': '<rootDir>/../shared/src/index.ts',
+  },
+};
+
+export default config;

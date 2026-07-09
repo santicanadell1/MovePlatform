@@ -1,0 +1,103 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum ZoneType {
+  RED
+  PREFERRED
+}
+
+enum UserRole {
+  CLIENT_PARTICULAR
+  CLIENT_EMPRESA
+  OPERATOR
+  ADMIN
+  CONDUCTOR
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+// ---------------------------------------------------------------------------
+// Models
+// ---------------------------------------------------------------------------
+
+model Category {
+  id                 String        @id @default(cuid())
+  nameEs             String        @unique @map("name_es")
+  nameEn             String        @unique @map("name_en")
+  description        String
+  examples           Json          @default("[]")
+  requiresMonitoring Boolean       @default(false) @map("requires_monitoring")
+  generatesAlerts    Boolean       @default(false) @map("generates_alerts")
+  surchargePercent   Decimal       @default(0) @map("surcharge_percent") @db.Decimal(5, 2)
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+  pricingRules       PricingRule[]
+
+  @@map("categories")
+}
+
+model PricingRule {
+  id         String   @id @default(cuid())
+  categoryId String   @map("category_id")
+  rules      Json     @default("{}")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([categoryId])
+  @@map("pricing_rules")
+}
+
+model Zone {
+  id        String                   @id @default(cuid())
+  name      String
+  type      ZoneType
+  geom      Unsupported("geometry")?
+  createdAt DateTime                 @default(now()) @map("created_at")
+  updatedAt DateTime                 @updatedAt @map("updated_at")
+
+  @@map("zones")
+}
+
+model Vehicle {
+  id          String   @id @default(cuid())
+  plate       String   @unique
+  type        String
+  capacity    Int
+  gpsDeviceId String?  @unique @map("gps_device_id")
+  available   Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([available])
+  @@map("vehicles")
+}
+
+model User {
+  id          String     @id @default(cuid())
+  firebaseUid String     @unique @map("firebase_uid")
+  name        String
+  role        UserRole   @default(CLIENT_PARTICULAR)
+  status      UserStatus @default(ACTIVE)
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  @@index([role])
+  @@index([status])
+  @@map("users")
+}

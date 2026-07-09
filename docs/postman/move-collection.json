@@ -1,0 +1,2136 @@
+{
+  "info": {
+    "name": "MOVE Platform API",
+    "description": "Colección completa F1-F19 para la plataforma MOVE de traslados urbanos. Ejecutar en orden para auto-popular todas las variables de entorno. Gateway: http://localhost:8000",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{token}}", "type": "string" }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Auto-login: renueva token del cliente particular cuando expiró o no existe",
+          "const expiry = parseInt(pm.environment.get('tokenExpiry') || '0', 10);",
+          "const now = Date.now();",
+          "",
+          "if (!pm.environment.get('token') || now >= expiry) {",
+          "    const baseUrl = pm.environment.get('baseUrlBooking');",
+          "    const email    = pm.environment.get('clientEmail');",
+          "    const password = pm.environment.get('clientPassword');",
+          "",
+          "    if (baseUrl && email && password) {",
+          "        pm.sendRequest({",
+          "            url: baseUrl + '/v1/auth/login',",
+          "            method: 'POST',",
+          "            header: { 'Content-Type': 'application/json' },",
+          "            body: { mode: 'raw', raw: JSON.stringify({ email: email, password: password }) }",
+          "        }, function (err, res) {",
+          "            if (!err && res.code === 200) {",
+          "                const body = res.json();",
+          "                const tok = body.data ? body.data.token : body.token;",
+          "                if (tok) {",
+          "                    pm.environment.set('token', tok);",
+          "                    pm.environment.set('tokenExpiry', String(now + 55 * 60 * 1000));",
+          "                }",
+          "            }",
+          "        });",
+          "    }",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "F1-F2: Autenticación",
+      "description": "Registro y login. Ejecutar todos los logins en orden para poblar los tokens de todos los roles. Respuesta envuelta en {data: {...}, error: null}.",
+      "item": [
+        {
+          "name": "POST Register (particular)",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "noauth" },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"PARTICULAR\",\n  \"name\": \"Juan Pérez\",\n  \"email\": \"{{clientEmail}}\",\n  \"password\": \"{{clientPassword}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrlBooking}}/v1/auth/register",
+              "host": ["{{baseUrlBooking}}"],
+              "path": ["v1", "auth", "register"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', function() { pm.response.to.have.status(201); });",
+                  "pm.test('Tiene id y role', function() {",
+                  "  const b = pm.response.json();",
+                  "  const payload = b.data || b;",
+                  "  pm.expect(payload).to.have.property('id');",
+                  "  pm.expect(payload).to.have.property('role');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST Register (empresa)",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "noauth" },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"EMPRESA\",\n  \"name\": \"ACME SA\",\n  \"email\": \"{{clientEmpresaEmail}}\",\n  \"password\": \"{{clientEmpresaPassword}}\",\n  \"companyName\": \"ACME SA\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrlBooking}}/v1/auth/register",
+              "host": ["{{baseUrlBooking}}"],
+              "path": ["v1", "auth", "register"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', function() { pm.response.to.have.status(201); });",
+                  "pm.test('Tiene id y role EMPRESA', function() {",
+                  "  const b = pm.response.json();",
+                  "  const payload = b.data || b;",
+                  "  pm.expect(payload).to.have.property('id');",
+                  "  pm.expect(payload.role).to.equal('CLIENT_EMPRESA');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST Register — Email Duplicado (→ 409)",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "noauth" },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"PARTICULAR\",\n  \"name\": \"Duplicado Test\",\n  \"email\": \"{{clientEmail}}\",\n  \"password\": \"{{clientPassword}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrlBooking}}/v1/auth/register",
+              "host": ["{{baseUrlBooking}}"],
+              "path": ["v1", "auth", "register"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 409 — email duplicado', function() { pm.response.to.have.status(409); });",
+                  "pm.test('Response tiene error', function() {",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST Login — Cliente Particular",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "noauth" },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{clientEmail}}\",\n  \"password\": \"{{clientPassword}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrlBooking}}/v1/auth/login",
+              "host": ["{{baseUrlBooking}}"],
+              "path": ["v1", "auth", "login"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', function() { pm.response.to.have.status(200); });",
+                  "pm.test('Guarda token de cliente particular', function() {",
+                  "  const b = pm.response.json();",
+                  "  const tok = b.data ? b.data.token : b.token;",
+                  "  pm.expect(tok).to.be.a('string');",
+                  "  pm.environment.set('token', tok);",
+                  "  pm.environment.set('tokenExpiry', String(Date.now() + 55 * 60 * 1000));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST Login — Cliente Empresa",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "noauth" },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{clientEmpresaEmail}}\",\n  \"password\": \"{{clientEmpresaPassword}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrlBooking}}/v1/auth/login",
+              "host": ["{{baseUrlBooking}}"],
+              "path": ["v1", "auth", "login"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', function() { pm.response.to.have.status(200); });",
+                  "pm.test('Guarda token de cliente empresa', function() {",
+                  "  const b = pm.response.json();",
+                  "  const tok = b.data ? b.data.token : b.token;",
+                  "  pm.expect(tok).to.be.a('string');",
+                  "  pm.environment.set('empresaToken', tok);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST Login — Conductor",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "noauth" },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{conductorEmail}}\",\n  \"password\": \"{{conductorPassword}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrlBooking}}/v1/auth/login",
+              "host": ["{{baseUrlBooking}}"],
+              "path": ["v1", "auth", "login"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', function() { pm.response.to.have.status(200); });",
+                  "pm.test('Guarda token de conductor', function() {",
+                  "  const b = pm.response.json();",
+                  "  const tok = b.data ? b.data.token : b.token;",
+                  "  pm.expect(tok).to.be.a('string');",
+                  "  pm.environment.set('conductorToken', tok);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST Login — Operador",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "noauth" },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{operatorEmail}}\",\n  \"password\": \"{{operatorPassword}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrlBooking}}/v1/auth/login",
+              "host": ["{{baseUrlBooking}}"],
+              "path": ["v1", "auth", "login"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', function() { pm.response.to.have.status(200); });",
+                  "pm.test('Guarda token de operador', function() {",
+                  "  const b = pm.response.json();",
+                  "  const tok = b.data ? b.data.token : b.token;",
+                  "  pm.expect(tok).to.be.a('string');",
+                  "  pm.environment.set('operatorToken', tok);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST Login — Credenciales Inválidas (→ 401)",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "noauth" },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{clientEmail}}\",\n  \"password\": \"ContrasenaMal123!\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrlBooking}}/v1/auth/login",
+              "host": ["{{baseUrlBooking}}"],
+              "path": ["v1", "auth", "login"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401 — credenciales inválidas', function() { pm.response.to.have.status(401); });",
+                  "pm.test('Response tiene error', function() {",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST Login — Usuario No Registrado (→ 401/404)",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "noauth" },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"noexiste@move.uy\",\n  \"password\": \"Test1234!\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrlBooking}}/v1/auth/login",
+              "host": ["{{baseUrlBooking}}"],
+              "path": ["v1", "auth", "login"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401 o 404 — usuario no existe', function() {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([401, 404]);",
+                  "});",
+                  "pm.test('Response tiene error', function() {",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST Login — Admin",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "noauth" },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrlBooking}}/v1/auth/login",
+              "host": ["{{baseUrlBooking}}"],
+              "path": ["v1", "auth", "login"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', function() { pm.response.to.have.status(200); });",
+                  "pm.test('Guarda token de admin', function() {",
+                  "  const b = pm.response.json();",
+                  "  const tok = b.data ? b.data.token : b.token;",
+                  "  pm.expect(tok).to.be.a('string');",
+                  "  pm.environment.set('adminToken', tok);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "F8: Categorías (Admin)",
+      "description": "CRUD de categorías. Ejecutar POST Crear Categoría primero — categoryId es requerido por F3 (productos). Respuesta: {data: {...}, error: null}",
+      "item": [
+        {
+          "name": "GET Listar Categorías",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrlOps}}/api/operaciones/categorias",
+              "host": ["{{baseUrlOps}}"],
+              "path": ["api", "operaciones", "categorias"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', function() { pm.response.to.have.status(200); });",
+                  "pm.test('Guarda categoryId del primero si existe', function() {",
+                  "  const b = pm.response.json();",
+                  "  const list = (b.data !== undefined) ? b.data : b;",
+                  "  if (Array.isArray(list) && list.length > 0) {",
+                  "    pm.environment.set('categoryId', list[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST Crear Categoría",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nameEs\": \"Electrónica\",\n  \"nameEn\": \"Electronics\",\n  \"description\": \"Productos electrónicos y tecnológicos\",\n  \"examples\": [\"laptop\", \"celular\", \"tablet\"],\n  \"requiresMonitoring\": true,\n  \"generatesAlerts\": true,\n  \"surchargePercent\": 10\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrlOps}}/api/operaciones/categorias",
+              "host": ["{{baseUrlOps}}"],
+              "path": ["api", "operaciones", "categorias"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', function() { pm.response.to.have.status(201); });",
+                  "pm.test('Guarda categoryId', function() {",
+                  "  const b = pm.response.json();",
+                  "  const id = b.data ? b.data.id : b.id;",
+                  "  pm.expect(id).to.be.a('string');",
+                  "  pm.environment.set('categoryId', id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT Actualizar Categoría",
+          "request": {
+            "method": "PUT",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"surchargePercent\": 15\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrlOps}}/api/operaciones/categorias/{{categoryId}}",
+              "host": ["{{baseUrlOps}}"],
+              "path": ["api", "operaciones", "categorias", "{{categoryId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', function() { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE Eliminar Categoría — Con Reservas (→ 409)",
+          "description": "No se puede eliminar una categoría que tiene reservas asociadas.",
+          "request": {
+            "method": "DELETE",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrlOps}}/api/operaciones/categorias/{{categoryId}}",
+              "host": ["{{baseUrlOps}}"],
+              "path": ["api", "operaciones", "categorias", "{{categoryId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 204 (sin reservas) o 409 (con reservas)', function() {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([204, 409]);",
+                  "});",
+                  "pm.test('Si 409: error indica categoría en uso', function() {",
+                  "  if (pm.response.code === 409) {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b.error).to.exist;",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE Eliminar Categoría",
+          "request": {
+            "method": "DELETE",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrlOps}}/api/operaciones/categorias/{{categoryId}}",
+              "host": ["{{baseUrlOps}}"],
+              "path": ["api", "operaciones", "categorias", "{{categoryId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 204', function() { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "F9: Zonas (Admin)",
+      "description": "CRUD de zonas geográficas RED y PREFERRED con GeoJSON. Respuesta: {data: {...}, error: null}",
+      "item": [
+        {
+          "name": "GET Listar Zonas",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrlOps}}/api/zonas",
+              "host": ["{{baseUrlOps}}"],
+              "path": ["api", "zonas"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', function() { pm.response.to.have.status(200); });",
+                  "pm.test('Guarda zoneId del primero si existe', function() {",
+                  "  const b = pm.response.json();",
+                  "  const list = (b.data !== undefined) ? b.data : b;",
+                  "  if (Array.isArray(list) && list.length > 0) {",
+                  "    pm.environment.set('zoneId', list[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST Crear Zona",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Zona Roja Centro\",\n  \"type\": \"RED\",\n  \"geom\": {\n    \"type\": \"Polygon\",\n    \"coordinates\": [[\n      [-56.1800, -34.8900],\n      [-56.1600, -34.8900],\n      [-56.1600, -34.9100],\n      [-56.1800, -34.9100],\n      [-56.1800, -34.8900]\n    ]]\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrlOps}}/api/zonas",
+              "host": ["{{baseUrlOps}}"],
+              "path": ["api", "zonas"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', function() { pm.response.to.have.status(201); });",
+                  "pm.test('Guarda zoneId', function() {",
+                  "  const b = pm.response.json();",
+                  "  const id = b.data ? b.data.id : b.id;",
+                  "  pm.expect(id).to.be.a('string');",
+                  "  pm.environment.set('zoneId', id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT Actualizar Zona",
+          "request": {
+            "method": "PUT",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Zona Roja Centro Actualizada\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrlOps}}/api/zonas/{{zoneId}}",
+              "host": ["{{baseUrlOps}}"],
+              "path": ["api", "zonas", "{{zoneId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', function() { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE Eliminar Zona",
+          "request": {
+            "method": "DELETE",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrlOps}}/api/zonas/{{zoneId}}",
+              "host": ["{{baseUrlOps}}"],
+              "path": ["api", "zonas", "{{zoneId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 204', function() { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "F10: Vehículos (Admin)",
+      "description": "CRUD de vehículos con GPS device. Respuesta: {data: {...}, error: null}",
+      "item": [
+        {
+          "name": "GET Listar Vehículos",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrlOps}}/api/operaciones/vehiculos?available=true",
+              "host": ["{{baseUrlOps}}"],
+              "path": ["api", "operaciones", "vehiculos"],
+              "query": [{ "key": "available", "value": "true" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', function() { pm.response.to.have.status(200); });",
+                  "pm.test('Guarda vehicleId del primero si existe', function() {",
+                  "  const b = pm.response.json();",
+                  "  const list = (b.data !== undefined) ? b.data : b;",
+                  "  if (Array.isArray(list) && list.length > 0) {",
+                  "    pm.environment.set('vehicleId', list[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST Crear Vehículo",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plate\": \"ABC1234\",\n  \"type\": \"CAMION\",\n  \"capacity\": 1000,\n  \"gpsDeviceId\": \"device-001\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrlOps}}/api/operaciones/vehiculos",
+              "host": ["{{baseUrlOps}}"],
+              "path": ["api", "operaciones", "vehiculos"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', function() { pm.response.to.have.status(201); });",
+                  "pm.test('Guarda vehicleId', function() {",
+                  "  const b = pm.response.json();",
+                  "  const id = b.data ? b.data.id : b.id;",
+                  "  pm.expect(id).to.be.a('string');",
+                  "  pm.environment.set('vehicleId', id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT Actualizar Vehículo",
+          "request": {
+            "method": "PUT",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"available\": true\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrlOps}}/api/operaciones/vehiculos/{{vehicleId}}",
+              "host": ["{{baseUrlOps}}"],
+              "path": ["api", "operaciones", "vehiculos", "{{vehicleId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', function() { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "F11: Usuarios (Admin)",
+      "description": "Gestión de usuarios en operations-service. Nota: solo lista usuarios que hayan interactuado con el sistema a través de RabbitMQ events.",
+      "item": [
+        {
+          "name": "GET Listar Usuarios",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrlOps}}/api/operaciones/usuarios",
+              "host": ["{{baseUrlOps}}"],
+              "path": ["api", "operaciones", "usuarios"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', function() { pm.response.to.have.status(200); });",
+                  "pm.test('Guarda conductorUserId si existe CONDUCTOR', function() {",
+                  "  const b = pm.response.json();",
+                  "  const list = b.data || b.users || b;",
+                  "  if (Array.isArray(list)) {",
+                  "    const conductor = list.find(function(u) { return u.role === 'CONDUCTOR'; });",
+                  "    if (conductor) {",
+                  "      pm.environment.set('conductorUserId', conductor.id);",
+                  "    }",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT Actualizar Estado Usuario",
+          "request": {
+            "method": "PUT",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ACTIVE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrlOps}}/api/operaciones/usuarios/{{conductorUserId}}/status",
+              "host": ["{{baseUrlOps}}"],
+              "path": ["api", "operaciones", "usuarios", "{{conductorUserId}}", "status"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', function() { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "F3: Preregistro Empresa",
+      "description": "CRUD de ubicaciones y productos preregistrados. Requiere empresaToken y categoryId. Respuesta: {data: {...}, error: null}",
+      "item": [
+        {
+          "name": "POST Create Location",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{empresaToken}}", "type": "string" }]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Depósito Central\",\n  \"address\": \"Av. 18 de Julio 1234, Montevideo\",\n  \"lat\": -34.9011,\n  \"lng\": -56.1645\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrlBooking}}/v1/companies/locations",
+              "host": ["{{baseUrlBooking}}"],
+              "path": ["v1", "companies", "locations"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', function() { pm.response.to.have.status(201); });",
+                  "pm.test('Guarda locationId', function() {",
+                  "  const b = pm.response.json();",
+                  "  const id = b.data ? b.data.id : b.id;",
+                  "  pm.expect(id).to.be.a('string');",
+                  "  pm.environment.set('locationId', id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET Listar Locations",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{empresaToken}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrlBooking}}/v1/companies/locations",
+              "host": ["{{baseUrlBooking}}"],
+              "path": ["v1", "companies", "locations"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', function() { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH Actualizar Location",
+          "request": {
+            "method": "PATCH",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{empresaToken}}", "type": "string" }]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Depósito Central Actualizado\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrlBooking}}/v1/companies/locations/{{locationId}}",
+              "host": ["{{baseUrlBooking}}"],
+              "path": ["v1", "companies", "locations", "{{locationId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', function() { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE Eliminar Location",
+          "request": {
+            "method": "DELETE",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{empresaToken}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrlBooking}}/v1/companies/locations/{{locationId}}",
+              "host": ["{{baseUrlBooking}}"],
+              "path": ["v1", "companies", "locations", "{{locationId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 204', function() { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST Create Product",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{empresaToken}}", "type": "string" }]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Electrodomésticos\",\n  \"categoryId\": \"{{categoryId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrlBooking}}/v1/companies/products",
+              "host": ["{{baseUrlBooking}}"],
+              "path": ["v1", "companies", "products"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', function() { pm.response.to.have.status(201); });",
+                  "pm.test('Guarda productId', function() {",
+                  "  const b = pm.response.json();",
+                  "  const id = b.data ? b.data.id : b.id;",
+                  "  pm.expect(id).to.be.a('string');",
+                  "  pm.environment.set('productId', id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET Listar Products",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{empresaToken}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrlBooking}}/v1/companies/products",
+              "host": ["{{baseUrlBooking}}"],
+              "path": ["v1", "companies", "products"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', function() { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH Actualizar Product",
+          "request": {
+            "method": "PATCH",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{empresaToken}}", "type": "string" }]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Electrodomésticos Premium\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrlBooking}}/v1/companies/products/{{productId}}",
+              "host": ["{{baseUrlBooking}}"],
+              "path": ["v1", "companies", "products", "{{productId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', function() { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST Create Product — RBAC Denegado (→ 403)",
+          "description": "Un cliente PARTICULAR no puede crear productos de empresa. Demuestra RBAC.",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Producto no autorizado\",\n  \"categoryId\": \"{{categoryId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrlBooking}}/v1/companies/products",
+              "host": ["{{baseUrlBooking}}"],
+              "path": ["v1", "companies", "products"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 403 — RBAC denegado para PARTICULAR', function() { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE Eliminar Product",
+          "request": {
+            "method": "DELETE",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{empresaToken}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrlBooking}}/v1/companies/products/{{productId}}",
+              "host": ["{{baseUrlBooking}}"],
+              "path": ["v1", "companies", "products", "{{productId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 204', function() { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "F4-F5: Reservas y Cotización",
+      "description": "Crear reservas. El sistema cotiza automáticamente (F5). Respuesta: {data: {id, status, totalCost, ...}, error: null}. Status puede ser QUOTED (200) o PENDING_CLASSIFICATION (202).",
+      "item": [
+        {
+          "name": "POST Reserva Particular",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"origin\": \"Av. Rivera 3456, Montevideo\",\n  \"destination\": \"Rambla Armenia 5678, Montevideo\",\n  \"originLat\": -34.8971,\n  \"originLng\": -56.1582,\n  \"destinationLat\": -34.9122,\n  \"destinationLng\": -56.1512,\n  \"scheduledDate\": \"2026-12-01T10:00:00.000Z\",\n  \"goods\": [\n    {\n      \"description\": \"Caja de ropa\",\n      \"value\": 500,\n      \"size\": \"MEDIUM\",\n      \"quantity\": 2\n    }\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrlBooking}}/v1/reservas",
+              "host": ["{{baseUrlBooking}}"],
+              "path": ["v1", "reservas"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 o 202', function() {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 201, 202]);",
+                  "});",
+                  "pm.test('Guarda reservationId', function() {",
+                  "  const b = pm.response.json();",
+                  "  const id = b.data ? b.data.id : b.id;",
+                  "  pm.expect(id).to.be.a('string');",
+                  "  pm.environment.set('reservationId', id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST Reserva Empresa",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{empresaToken}}", "type": "string" }]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"origin\": \"Av. Rivera 3456, Montevideo\",\n  \"destination\": \"Rambla Armenia 5678, Montevideo\",\n  \"originLat\": -34.8971,\n  \"originLng\": -56.1582,\n  \"destinationLat\": -34.9122,\n  \"destinationLng\": -56.1512,\n  \"scheduledDate\": \"2026-12-01T14:00:00.000Z\",\n  \"goods\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"description\": \"Envío industrial\",\n      \"value\": 5000,\n      \"size\": \"LARGE\",\n      \"quantity\": 1\n    }\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrlBooking}}/v1/reservas",
+              "host": ["{{baseUrlBooking}}"],
+              "path": ["v1", "reservas"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 o 202', function() {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 201, 202]);",
+                  "});",
+                  "pm.test('Guarda reservationIdEmpresa', function() {",
+                  "  const b = pm.response.json();",
+                  "  const id = b.data ? b.data.id : b.id;",
+                  "  pm.expect(id).to.be.a('string');",
+                  "  pm.environment.set('reservationIdEmpresa', id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "F4-F5: Reservas y Cotización — Errores",
+      "description": "Escenarios de error en creación de reservas.",
+      "item": [
+        {
+          "name": "POST Reserva Empresa — Sin Preregistro (→ 400)",
+          "description": "Empresa intenta reservar con productId que no existe en sus productos registrados.",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{empresaToken}}", "type": "string" }]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"origin\": \"Av. Rivera 3456, Montevideo\",\n  \"destination\": \"Rambla Armenia 5678, Montevideo\",\n  \"originLat\": -34.8971,\n  \"originLng\": -56.1582,\n  \"destinationLat\": -34.9122,\n  \"destinationLng\": -56.1512,\n  \"scheduledDate\": \"2026-12-15T10:00:00.000Z\",\n  \"goods\": [\n    {\n      \"productId\": \"producto-inexistente-000\",\n      \"description\": \"Producto no registrado\",\n      \"value\": 1000,\n      \"size\": \"LARGE\",\n      \"quantity\": 1\n    }\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrlBooking}}/v1/reservas",
+              "host": ["{{baseUrlBooking}}"],
+              "path": ["v1", "reservas"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 o 404 — producto no preregistrado', function() {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([400, 404]);",
+                  "});",
+                  "pm.test('Response tiene error', function() {",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "F6: Pago",
+      "description": "Confirmar y pagar reserva. Puede retornar 503 si el circuit breaker de MercadoPago está abierto. Respuesta: {data: {status: APPROVED|REJECTED, amount, ...}, error: null}",
+      "item": [
+        {
+          "name": "POST Pagar Reserva — Pago Aceptado",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrlBooking}}/v1/reservas/{{reservationId}}/pagar",
+              "host": ["{{baseUrlBooking}}"],
+              "path": ["v1", "reservas", "{{reservationId}}", "pagar"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 o 503 (circuit breaker abierto)', function() {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 503]);",
+                  "});",
+                  "pm.test('Response tiene datos de pago o error', function() {",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b).to.satisfy(function(r) {",
+                  "    return (r.data && r.data.status) || r.error !== undefined;",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+        ,
+        {
+          "name": "POST Pagar Reserva — Pago Rechazado",
+          "description": "La pasarela puede devolver REJECTED. El endpoint retorna 200 con data.paymentStatus === REJECTED.",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrlBooking}}/v1/reservas/{{reservationId}}/pagar",
+              "host": ["{{baseUrlBooking}}"],
+              "path": ["v1", "reservas", "{{reservationId}}", "pagar"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 (APPROVED o REJECTED)', function() {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 400, 409]);",
+                  "});",
+                  "pm.test('Si 200: response tiene paymentStatus', function() {",
+                  "  if (pm.response.code === 200) {",
+                  "    const b = pm.response.json();",
+                  "    const payload = b.data || b;",
+                  "    pm.expect(payload).to.have.property('paymentStatus');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST Pagar Reserva — Pasarela Caída (CB → 503)",
+          "description": "Cuando el circuit breaker de MercadoPago está abierto (después de múltiples fallos), el endpoint retorna 503 sin intentar el pago.",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrlBooking}}/v1/reservas/{{reservationId}}/pagar",
+              "host": ["{{baseUrlBooking}}"],
+              "path": ["v1", "reservas", "{{reservationId}}", "pagar"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 (normal) o 503 (circuit breaker abierto)', function() {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 400, 409, 503]);",
+                  "});",
+                  "pm.test('Si 503: error indica circuit breaker', function() {",
+                  "  if (pm.response.code === 503) {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b.error).to.exist;",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "F7: Consulta Reservas",
+      "description": "Listar reservas con paginación cursor-based. Respuesta: {data: {reservations: [...], nextCursor, total}, error: null}",
+      "item": [
+        {
+          "name": "GET Listar Reservas",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrlBooking}}/v1/reservas?limit=20",
+              "host": ["{{baseUrlBooking}}"],
+              "path": ["v1", "reservas"],
+              "query": [{ "key": "limit", "value": "20" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', function() { pm.response.to.have.status(200); });",
+                  "pm.test('Response tiene listado de reservas', function() {",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b).to.satisfy(function(r) {",
+                  "    const items = r.data ? (r.data.reservations || r.data) : r;",
+                  "    return Array.isArray(items);",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+        ,
+        {
+          "name": "GET Listar Reservas — Filtro por Status",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrlBooking}}/v1/reservas?status=QUOTED&limit=10",
+              "host": ["{{baseUrlBooking}}"],
+              "path": ["v1", "reservas"],
+              "query": [
+                { "key": "status", "value": "QUOTED" },
+                { "key": "limit",  "value": "10" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', function() { pm.response.to.have.status(200); });",
+                  "pm.test('Todas las reservas tienen status QUOTED', function() {",
+                  "  const b = pm.response.json();",
+                  "  const items = b.data ? (b.data.reservations || b.data) : b;",
+                  "  if (Array.isArray(items) && items.length > 0) {",
+                  "    items.forEach(function(r) { pm.expect(r.status).to.equal('QUOTED'); });",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET Listar Reservas — Filtro por Fecha",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrlBooking}}/v1/reservas?dateFrom=2026-01-01T00:00:00.000Z&dateTo=2026-12-31T23:59:59.000Z&limit=10",
+              "host": ["{{baseUrlBooking}}"],
+              "path": ["v1", "reservas"],
+              "query": [
+                { "key": "dateFrom", "value": "2026-01-01T00:00:00.000Z" },
+                { "key": "dateTo",   "value": "2026-12-31T23:59:59.000Z" },
+                { "key": "limit",    "value": "10" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', function() { pm.response.to.have.status(200); });",
+                  "pm.test('Response tiene listado', function() {",
+                  "  const b = pm.response.json();",
+                  "  const items = b.data ? (b.data.reservations || b.data) : b;",
+                  "  pm.expect(Array.isArray(items)).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET Listar Reservas — Operador ve todas (RBAC)",
+          "description": "El OPERATOR puede ver reservas de todos los clientes. El cliente solo ve las propias.",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{operatorToken}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrlBooking}}/v1/reservas?limit=20",
+              "host": ["{{baseUrlBooking}}"],
+              "path": ["v1", "reservas"],
+              "query": [{ "key": "limit", "value": "20" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 — operador puede listar reservas', function() { pm.response.to.have.status(200); });",
+                  "pm.test('Response tiene listado de reservas', function() {",
+                  "  const b = pm.response.json();",
+                  "  const items = b.data ? (b.data.reservations || b.data) : b;",
+                  "  pm.expect(Array.isArray(items)).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "F5-Admin: Gestión Precios",
+      "description": "Hot reload de reglas de pricing sin reiniciar el servicio.",
+      "item": [
+        {
+          "name": "POST Reload Pricing Rules",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrlBooking}}/v1/admin/pricing/reload",
+              "host": ["{{baseUrlBooking}}"],
+              "path": ["v1", "admin", "pricing", "reload"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', function() { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "F12: Asignación (Operador)",
+      "description": "Asignar vehículo y conductor a una reserva. NOTA: Requiere que la reserva haya sido pagada (F6) y que operations-service haya recibido el evento reservation.confirmed. El assign usa SELECT FOR UPDATE para evitar doble booking.",
+      "item": [
+        {
+          "name": "POST Asignar Reserva",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{operatorToken}}", "type": "string" }]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vehicleId\": \"{{vehicleId}}\",\n  \"conductorId\": \"{{conductorUserId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrlOps}}/api/operaciones/reservas/{{reservationId}}/asignar",
+              "host": ["{{baseUrlOps}}"],
+              "path": ["api", "operaciones", "reservas", "{{reservationId}}", "asignar"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 o 4xx (conflicto o estado inválido)', function() {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 404, 409, 422]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+        ,
+        {
+          "name": "POST Asignar — Capacidad Insuficiente (→ 409)",
+          "description": "Intentar asignar una MOTO (capacidad 50 kg) a una reserva con bienes LARGE. El sistema valida capacidad y retorna 409.",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{operatorToken}}", "type": "string" }]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vehicleId\": \"{{vehicleIdMoto}}\",\n  \"conductorId\": \"{{conductorUserId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrlOps}}/api/operaciones/reservas/{{reservationId}}/asignar",
+              "host": ["{{baseUrlOps}}"],
+              "path": ["api", "operaciones", "reservas", "{{reservationId}}", "asignar"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 409 (capacidad insuficiente) o 200/404 si vehicleIdMoto no está seteado', function() {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 404, 409, 422]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST Asignar — Doble Booking (→ 409)",
+          "description": "Intentar asignar el mismo vehículo que ya está asignado a otra reserva. Demuestra SELECT FOR UPDATE anti doble booking.",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{operatorToken}}", "type": "string" }]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vehicleId\": \"{{vehicleId}}\",\n  \"conductorId\": \"{{conductorUserId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrlOps}}/api/operaciones/reservas/{{reservationId}}/asignar",
+              "host": ["{{baseUrlOps}}"],
+              "path": ["api", "operaciones", "reservas", "{{reservationId}}", "asignar"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 (primera vez) o 409 (doble booking)', function() {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 404, 409, 422]);",
+                  "});",
+                  "pm.test('Si 409: error indica conflicto de asignación', function() {",
+                  "  if (pm.response.code === 409) {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b.error).to.exist;",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "F18: Traslados Activos (Operador)",
+      "description": "Listar traslados en curso. Lee de projection table local (operations_service). Respuesta: {data: {items: [...], nextCursor}, error: null}",
+      "item": [
+        {
+          "name": "GET Traslados Activos",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{operatorToken}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrlOps}}/api/operaciones/traslados?limit=20",
+              "host": ["{{baseUrlOps}}"],
+              "path": ["api", "operaciones", "traslados"],
+              "query": [{ "key": "limit", "value": "20" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', function() { pm.response.to.have.status(200); });",
+                  "pm.test('Response tiene listado de traslados', function() {",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b).to.satisfy(function(r) {",
+                  "    if (r.data) { return Array.isArray(r.data.items) || Array.isArray(r.data); }",
+                  "    return Array.isArray(r) || Array.isArray(r.items);",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+        ,
+        {
+          "name": "GET Traslados — hasAlerts=true",
+          "description": "Filtrar traslados que tienen alertas activas (zona roja, stop detectado, etc.).",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{operatorToken}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrlOps}}/api/operaciones/traslados?hasAlerts=true&limit=20",
+              "host": ["{{baseUrlOps}}"],
+              "path": ["api", "operaciones", "traslados"],
+              "query": [
+                { "key": "hasAlerts", "value": "true" },
+                { "key": "limit",     "value": "20" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', function() { pm.response.to.have.status(200); });",
+                  "pm.test('Response tiene listado de traslados', function() {",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b).to.satisfy(function(r) {",
+                  "    if (r.data) { return Array.isArray(r.data.items) || Array.isArray(r.data); }",
+                  "    return Array.isArray(r) || Array.isArray(r.items);",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET Traslados — status=IN_TRANSIT",
+          "description": "Filtrar solo traslados actualmente en tránsito.",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{operatorToken}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrlOps}}/api/operaciones/traslados?status=IN_TRANSIT&limit=20",
+              "host": ["{{baseUrlOps}}"],
+              "path": ["api", "operaciones", "traslados"],
+              "query": [
+                { "key": "status", "value": "IN_TRANSIT" },
+                { "key": "limit",  "value": "20" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', function() { pm.response.to.have.status(200); });",
+                  "pm.test('Todos los traslados están IN_TRANSIT', function() {",
+                  "  const b = pm.response.json();",
+                  "  const items = b.data ? (b.data.items || b.data) : (b.items || b);",
+                  "  if (Array.isArray(items) && items.length > 0) {",
+                  "    items.forEach(function(t) { pm.expect(t.status).to.equal('IN_TRANSIT'); });",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "F13: Iniciar Traslado (Conductor)",
+      "description": "El conductor inicia el traslado asignado. Respuesta directa SIN wrapper: {transferId, reservationId, status: IN_TRANSIT, startedAt}",
+      "item": [
+        {
+          "name": "POST Iniciar Traslado",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{conductorToken}}", "type": "string" }]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vehicleId\": \"{{vehicleId}}\",\n  \"deviceId\": \"device-001\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrlTracking}}/api/tracking/traslados/{{reservationId}}/iniciar",
+              "host": ["{{baseUrlTracking}}"],
+              "path": ["api", "tracking", "traslados", "{{reservationId}}", "iniciar"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', function() { pm.response.to.have.status(200); });",
+                  "pm.test('Status es IN_TRANSIT', function() {",
+                  "  const b = pm.response.json();",
+                  "  const status = b.status || (b.data && b.data.status);",
+                  "  pm.expect(status).to.equal('IN_TRANSIT');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "F14: GPS Tracking (Conductor)",
+      "description": "Enviar puntos GPS al pipeline P1-P7. Respuesta directa SIN wrapper: {message: 'GPS point enqueued'}. Status 202 Accepted (procesamiento asíncrono).",
+      "item": [
+        {
+          "name": "POST Enviar Punto GPS",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{conductorToken}}", "type": "string" }]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"deviceId\": \"device-001\",\n  \"lat\": -34.9011,\n  \"lng\": -56.1645,\n  \"speed\": 45.5,\n  \"heading\": 180,\n  \"accuracy\": 5,\n  \"timestamp\": \"2026-12-01T10:05:00.000Z\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrlTracking}}/api/tracking/gps",
+              "host": ["{{baseUrlTracking}}"],
+              "path": ["api", "tracking", "gps"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 202 Accepted', function() { pm.response.to.have.status(202); });",
+                  "pm.test('Response confirma enqueue', function() {",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b.message).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "F15-F16: Alertas e Incidencias",
+      "description": "F15-F16 (alertas de zona/stop) son generadas automáticamente por el pipeline GPS. F16 también incluye incidencias manuales del conductor. Respuestas directas SIN wrapper.",
+      "item": [
+        {
+          "name": "POST Reportar Incidencia",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{conductorToken}}", "type": "string" }]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Tráfico intenso en Av. 8 de Octubre, desvío necesario por Bulevar Artigas.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrlTracking}}/api/tracking/traslados/{{reservationId}}/incidencias",
+              "host": ["{{baseUrlTracking}}"],
+              "path": ["api", "tracking", "traslados", "{{reservationId}}", "incidencias"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', function() { pm.response.to.have.status(201); });",
+                  "pm.test('Guarda incidentId', function() {",
+                  "  const b = pm.response.json();",
+                  "  const id = b.incidentId || b.id || (b.data && b.data.id);",
+                  "  pm.expect(id).to.be.a('string');",
+                  "  pm.environment.set('incidentId', id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET Listar Incidencias",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{conductorToken}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrlTracking}}/api/tracking/traslados/{{reservationId}}/incidencias",
+              "host": ["{{baseUrlTracking}}"],
+              "path": ["api", "tracking", "traslados", "{{reservationId}}", "incidencias"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', function() { pm.response.to.have.status(200); });",
+                  "pm.test('Response es array', function() {",
+                  "  const b = pm.response.json();",
+                  "  const items = Array.isArray(b) ? b : (b.data || b.items || []);",
+                  "  pm.expect(Array.isArray(items)).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "F17: Finalizar Traslado (Conductor)",
+      "description": "El conductor finaliza el traslado. Respuesta directa SIN wrapper: {transferId, reservationId, status: COMPLETED, finishedAt}",
+      "item": [
+        {
+          "name": "POST Finalizar Traslado",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{conductorToken}}", "type": "string" }]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"deviceId\": \"device-001\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrlTracking}}/api/tracking/traslados/{{reservationId}}/finalizar",
+              "host": ["{{baseUrlTracking}}"],
+              "path": ["api", "tracking", "traslados", "{{reservationId}}", "finalizar"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', function() { pm.response.to.have.status(200); });",
+                  "pm.test('Status es COMPLETED', function() {",
+                  "  const b = pm.response.json();",
+                  "  const status = b.status || (b.data && b.data.status);",
+                  "  pm.expect(status).to.equal('COMPLETED');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "F19: SSE y Clasificación (Operador)",
+      "description": "Stream SSE de notificaciones de reservas no clasificadas. El operador puede clasificar o rechazar. Clasificar solo funciona en reservas con status PENDING_CLASSIFICATION.",
+      "item": [
+        {
+          "name": "GET SSE Notifications Stream",
+          "description": "SSE (Server-Sent Events) — Para ver el stream en tiempo real, abrir en un navegador con: const es = new EventSource('http://localhost:8000/v1/reservas/notifications/stream', {headers:{Authorization:'Bearer TOKEN'}}); es.onmessage = e => console.log(e.data). Postman muestra el stream en raw. Requiere operatorToken.",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{operatorToken}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrlBooking}}/v1/reservas/notifications/stream",
+              "host": ["{{baseUrlBooking}}"],
+              "path": ["v1", "reservas", "notifications", "stream"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', function() { pm.response.to.have.status(200); });",
+                  "pm.test('Content-Type es text/event-stream', function() {",
+                  "  const ct = pm.response.headers.get('Content-Type') || '';",
+                  "  pm.expect(ct).to.include('text/event-stream');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST Clasificar Reserva",
+          "description": "Solo funciona en reservas con status PENDING_CLASSIFICATION. Las reservas clasificadas por IA tienen status QUOTED.",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{operatorToken}}", "type": "string" }]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categoryId\": \"{{categoryId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrlBooking}}/v1/reservas/{{reservationId}}/clasificar",
+              "host": ["{{baseUrlBooking}}"],
+              "path": ["v1", "reservas", "{{reservationId}}", "clasificar"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 o 400 (reserva ya clasificada)', function() {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 400, 409]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST Rechazar Reserva",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{operatorToken}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrlBooking}}/v1/reservas/{{reservationId}}/rechazar",
+              "host": ["{{baseUrlBooking}}"],
+              "path": ["v1", "reservas", "{{reservationId}}", "rechazar"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 o 400', function() {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 400, 409]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
