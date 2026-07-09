@@ -4,8 +4,6 @@ Plataforma de gestión de traslados urbanos de bienes: reservas, cotización, as
 
 Este proyecto es el entregable del obligatorio de **Arquitectura de Software** (Universidad ORT Uruguay, 2026). La consigna pedía diseñar e implementar una plataforma completa que resolviera un dominio real (una empresa de traslados de bienes) aplicando decisiones de arquitectura fundamentadas, atributos de calidad medibles y patrones de diseño, no solo "que funcione".
 
-Lo desarrollamos en equipo de tres. Mi parte fue el **tracking-service**: la recepción de GPS y todo el pipeline de procesamiento en tiempo real que detecta zonas peligrosas y paradas prolongadas y genera las alertas.
-
 ---
 
 ## Qué hace
@@ -22,11 +20,13 @@ Lo desarrollamos en equipo de tres. Mi parte fue el **tracking-service**: la rec
 
 ## Arquitectura
 
-Elegimos una arquitectura **Service-Based orientada a eventos**, un punto intermedio entre SOA y microservicios.
+Elegimos una arquitectura **Service-Based orientada a eventos**, porque nos pareció la opción que mejor equilibraba lo que pedía la consigna: servicios independientes y desplegables por separado, pero sin la complejidad operativa de los microservicios puros, que para el alcance del proyecto no se justificaba.
 
-- **No es microservicios** porque no usamos una base de datos por servicio: tenemos una única base **PostgreSQL** dividida en **tres esquemas** (uno por servicio), lo que da separación lógica sin la complejidad de la consistencia distribuida.
-- **No es SOA clásico** porque no hay un ESB pesado: los servicios se integran a través de un broker liviano.
-- La comunicación **entre servicios es 100% asíncrona** por colas de RabbitMQ. Ningún servicio llama a otro de forma directa, así una falla en un servicio no tumba a los demás: el evento espera en la cola y se procesa cuando el servicio se recupera.
+Se apoya en tres decisiones centrales:
+
+- **Una única base PostgreSQL dividida en tres esquemas** (uno por servicio). Cada servicio accede solo a su esquema, lo que da separación lógica de datos sin tener que resolver consistencia entre bases distribuidas.
+- **Servicios de baja granularidad**: tres servicios grandes de dominio en lugar de decenas de servicios pequeños, más fáciles de razonar y operar para este alcance.
+- **Comunicación 100% asíncrona entre servicios** vía colas de RabbitMQ. Ningún servicio llama a otro de forma directa, así una falla en un servicio no tumba a los demás: el evento espera en la cola y se procesa cuando el servicio se recupera. Esto es lo que sostiene la disponibilidad del sistema.
 
 El sistema son **13 contenedores Docker**: tres servicios HTTP (booking, operations, tracking), dos workers (clasificación IA y simulador GPS), un API Gateway (nginx como reverse proxy) y la infraestructura de apoyo (PostgreSQL, Redis, RabbitMQ, Ollama, OpenRouteService, Prometheus, Grafana).
 
@@ -82,8 +82,6 @@ Levanta los 13 contenedores. El API Gateway queda expuesto en `http://localhost:
 
 ---
 
-## Equipo y mi rol
+## Equipo
 
-Proyecto desarrollado en equipo de tres para el obligatorio de Arquitectura de Software (ORT, 2026).
-
-Mi aporte fue el **tracking-service**: el endpoint de recepción de GPS, el pipeline completo de siete etapas (Pipes and Filters con colas Bull), la generación de alertas por geofence y por parada prolongada, el simulador GPS para pruebas, y los tests del servicio.
+Proyecto desarrollado en equipo de tres para el obligatorio de Arquitectura de Software (Universidad ORT Uruguay, 2026).
