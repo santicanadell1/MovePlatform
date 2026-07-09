@@ -4,6 +4,10 @@ Plataforma de gestión de traslados urbanos de bienes: reservas, cotización, as
 
 Este proyecto es el entregable del obligatorio de **Arquitectura de Software** (Universidad ORT Uruguay, 2026). La consigna pedía diseñar e implementar una plataforma completa que resolviera un dominio real (una empresa de traslados de bienes) aplicando decisiones de arquitectura fundamentadas, atributos de calidad medibles y patrones de diseño, no solo "que funcione".
 
+![Mapa de operaciones](docs/img/mapa-operaciones.png)
+
+*Panel de operaciones sobre Montevideo: zonas prohibidas (rojo) y preferidas (verde), y la posición de un vehículo en tiempo real. El punto rojo indica un traslado con alerta activa, en este caso por haber entrado en una zona prohibida. El mapa usa Leaflet sobre OpenStreetMap y las distancias de ruta las calcula OpenRouteService.*
+
 ---
 
 ## Qué hace
