@@ -82,6 +82,13 @@ Levanta los 13 contenedores. El API Gateway queda expuesto en `http://localhost:
 
 ---
 
+## Documentación
+
+- [Informe final](docs/MOVE-informe-final.pdf) — documentación completa de la arquitectura (vistas, decisiones y ADRs, atributos de calidad).
+- [Letra del obligatorio](docs/letra-obligatorio.pdf) — la consigna original de la materia, como referencia del problema a resolver.
+
+---
+
 ## Equipo
 
 Proyecto desarrollado en equipo de tres para el obligatorio de Arquitectura de Software (Universidad ORT Uruguay, 2026).
